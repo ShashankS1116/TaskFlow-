@@ -1,5 +1,5 @@
-const prisma = require('../utils/prisma');
-const { sendSuccess, sendError } = require('../utils/response');
+const prisma = require("../utils/prisma");
+const { sendSuccess, sendError } = require("../utils/response");
 
 /**
  * GET /api/users — List all users (Admin only)
@@ -12,8 +12,8 @@ async function listUsers(req, res, next) {
     const where = {};
     if (search) {
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
       ];
     }
     if (role) where.role = role;
@@ -32,7 +32,7 @@ async function listUsers(req, res, next) {
           createdAt: true,
           _count: { select: { assignedTasks: true, ownedProjects: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
       }),
       prisma.user.count({ where }),
     ]);
@@ -74,7 +74,7 @@ async function getUser(req, res, next) {
       },
     });
 
-    if (!user) return sendError(res, 'User not found', 404);
+    if (!user) return sendError(res, "User not found", 404);
     return sendSuccess(res, { user });
   } catch (error) {
     next(error);
@@ -89,8 +89,8 @@ async function updateUser(req, res, next) {
     const { id } = req.params;
 
     // Only self or admin can update
-    if (req.user.id !== id && req.user.role !== 'ADMIN') {
-      return sendError(res, 'Forbidden', 403);
+    if (req.user.id !== id && req.user.role !== "ADMIN") {
+      return sendError(res, "Forbidden", 403);
     }
 
     const { name, avatar } = req.body;
@@ -99,7 +99,7 @@ async function updateUser(req, res, next) {
     if (avatar !== undefined) updateData.avatar = avatar;
 
     // Only global admin can change roles
-    if (req.body.role && req.user.role === 'ADMIN') {
+    if (req.body.role && req.user.role === "ADMIN") {
       updateData.role = req.body.role;
     }
 
@@ -109,7 +109,7 @@ async function updateUser(req, res, next) {
       select: { id: true, email: true, name: true, role: true, avatar: true },
     });
 
-    return sendSuccess(res, { user }, 'Profile updated');
+    return sendSuccess(res, { user }, "Profile updated");
   } catch (error) {
     next(error);
   }
@@ -123,11 +123,34 @@ async function deleteUser(req, res, next) {
     const { id } = req.params;
 
     if (id === req.user.id) {
-      return sendError(res, 'Cannot delete your own account', 400);
+      return sendError(res, "Cannot delete your own account", 400);
     }
 
+    // Reassign tasks created by this user to the admin
+    await prisma.task.updateMany({
+      where: { creatorId: id },
+      data: { creatorId: req.user.id },
+    });
+
+    // Remove user from all project memberships
+    await prisma.projectMember.deleteMany({
+      where: { userId: id },
+    });
+
+    // Unassign tasks assigned to this user
+    await prisma.task.updateMany({
+      where: { assigneeId: id },
+      data: { assigneeId: null },
+    });
+
+    // Delete all comments by this user
+    await prisma.comment.deleteMany({
+      where: { authorId: id },
+    });
+
+    // Now safely delete the user
     await prisma.user.delete({ where: { id } });
-    return sendSuccess(res, {}, 'User deleted successfully');
+    return sendSuccess(res, {}, "User deleted successfully");
   } catch (error) {
     next(error);
   }
