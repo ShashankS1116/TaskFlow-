@@ -31,38 +31,57 @@ A production-ready **Team Task Manager REST API** built with Node.js, Express, P
 
 ## 📁 Project Structure
 
+This is a monorepo with the backend and frontend fully separated into their own folders, each deployed independently (backend → Railway, frontend → Netlify).
+
 ```
 taskflow/
-├── prisma/
-│   └── schema.prisma          # Database models
-├── src/
-│   ├── controllers/
-│   │   ├── auth.controller.js
-│   │   ├── user.controller.js
-│   │   ├── project.controller.js
-│   │   ├── task.controller.js
-│   │   └── dashboard.controller.js
-│   ├── middleware/
-│   │   ├── auth.middleware.js  # JWT + RBAC guards
-│   │   ├── error.middleware.js # Global error handler
-│   │   └── validate.middleware.js
-│   ├── routes/
-│   │   ├── auth.routes.js
-│   │   ├── user.routes.js
-│   │   ├── project.routes.js
-│   │   ├── task.routes.js
-│   │   └── dashboard.routes.js
-│   ├── utils/
-│   │   ├── jwt.js
-│   │   ├── prisma.js           # Singleton client
-│   │   ├── response.js
-│   │   └── seed.js
-│   ├── app.js                  # Express setup
-│   └── server.js               # Entry point
-├── .env.example
-├── railway.toml
-└── package.json
+├── backend/
+│   ├── prisma/
+│   │   └── schema.prisma          # Database models
+│   ├── src/
+│   │   ├── controllers/
+│   │   │   ├── auth.controller.js
+│   │   │   ├── user.controller.js
+│   │   │   ├── project.controller.js
+│   │   │   ├── task.controller.js
+│   │   │   └── dashboard.controller.js
+│   │   ├── middleware/
+│   │   │   ├── auth.middleware.js  # JWT + RBAC guards
+│   │   │   ├── error.middleware.js # Global error handler
+│   │   │   └── validate.middleware.js
+│   │   ├── routes/
+│   │   │   ├── auth.routes.js
+│   │   │   ├── user.routes.js
+│   │   │   ├── project.routes.js
+│   │   │   ├── task.routes.js
+│   │   │   └── dashboard.routes.js
+│   │   ├── utils/
+│   │   │   ├── jwt.js
+│   │   │   ├── prisma.js           # Singleton client
+│   │   │   ├── response.js
+│   │   │   └── seed.js
+│   │   ├── app.js                  # Express setup
+│   │   └── server.js               # Entry point
+│   ├── .env.example
+│   ├── railway.toml
+│   ├── Procfile
+│   └── package.json
+└── frontend/
+    ├── public/
+    │   └── _redirects              # Netlify SPA routing fix
+    ├── src/
+    │   ├── components/
+    │   ├── context/
+    │   ├── pages/
+    │   ├── utils/api.js             # Axios instance (VITE_API_URL)
+    │   ├── App.jsx
+    │   └── main.jsx
+    ├── .env.example
+    ├── vite.config.js
+    └── package.json
 ```
+
+> **Deployment note:** because this is a monorepo, both Railway and Netlify need their **Root Directory / Base Directory** setting pointed at the right subfolder — Railway → `backend`, Netlify → `frontend`. See the deploy sections below.
 
 ---
 
@@ -75,7 +94,7 @@ taskflow/
 ### 1. Clone & install
 ```bash
 git clone https://github.com/YOUR_USERNAME/taskflow-api.git
-cd taskflow-api
+cd taskflow-api/backend
 npm install
 ```
 
@@ -114,6 +133,7 @@ Server runs on `http://localhost:3000`
 1. Go to [railway.app](https://railway.app) → **New Project**
 2. Choose **Deploy from GitHub repo**
 3. Connect your GitHub and select this repo
+4. **Important:** in the service's **Settings → Root Directory**, set it to `backend` — otherwise Railway will try to build from the repo root and won't find `package.json`.
 
 ### Step 2 — Add PostgreSQL
 1. Click **+ New** → **Database** → **Add PostgreSQL**
@@ -145,6 +165,35 @@ railway run npm run db:seed
 
 ### Step 6 — Get your live URL
 Railway provides a URL like: `https://taskflow-api-production.up.railway.app`
+
+---
+
+## 🌐 Deploy Frontend to Netlify
+
+### Step 1 — Create Netlify site
+1. Go to [netlify.com](https://netlify.com) → **Add new site → Import an existing project**
+2. Connect your GitHub and select this repo
+
+### Step 2 — Configure build settings
+In **Site settings → Build & deploy**:
+```
+Base directory:    frontend
+Build command:     npm run build
+Publish directory: frontend/dist
+```
+
+### Step 3 — Set environment variables
+In **Site settings → Environment variables**, add:
+```
+VITE_API_URL=https://taskflow-api-production.up.railway.app/api
+```
+(use your actual Railway URL from Step 6 above, with `/api` at the end)
+
+### Step 4 — Deploy
+Netlify auto-deploys on every push to `main`. The included `public/_redirects` file ensures React Router routes work on refresh/direct links.
+
+### Step 5 — Update backend CORS
+Back in Railway, make sure `ALLOWED_ORIGINS` includes your Netlify URL exactly (e.g. `https://taskflow-man.netlify.app`), then redeploy the backend.
 
 ---
 

@@ -15,8 +15,22 @@ const app = express();
 
 // ─── Security Middleware ────────────────────────────────────────────────────
 app.use(helmet());
+
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+  : null;
+
+console.log('🔒 CORS allowed origins:', allowedOrigins || '* (all origins - set ALLOWED_ORIGINS in production)');
+
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Postman, server-to-server, health checks)
+    if (!origin) return callback(null, true);
+    if (!allowedOrigins) return callback(null, true); // ALLOWED_ORIGINS not set - allow all
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    console.warn(`⛔ Blocked CORS request from origin: ${origin}`);
+    return callback(new Error('Not allowed by CORS'));
+  },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
